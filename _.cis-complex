@@ -1,0 +1,2065 @@
+
+
+
+;_______________________________________________________________________
+;## S3M ################################################################
+
+	;  mac getmask	reg
+	;
+	;	; 1	- register name
+	;	;
+	;	; out:	@A == mask, @c = width, @i = 0, @f = 1
+	;
+	;	.set	@A	= @REG_%1
+	;
+	;	.set	@c	= @REGL_%1
+	;
+	;	.set	@i	= 0
+	;
+	;	.set	@f	= 1
+
+;_______________________________________________________________________
+;## INSTRUCTION MODELS(26) #############################################
+
+	; problem 1:		cp	x, tz		- should we check high-part of tz - z - for zero ?
+	; problem 2:		and	t, 0xFFFF	- should we skip all istructions or stay first ?
+
+;_________________________________________________________________
+.macro mnem_pair_pair ; ##########################################
+
+		; 0,1		- mnemonic1
+		; 2		- register-pair(0)
+		; 3		- register-pair(1)
+		;_____________________________
+		;
+		; movw
+		;_____________________________
+
+		.if isreg( @2 )
+		
+			;  getmask	@2
+			
+			.if isreg( @3 )
+			
+				.set	@B = @REG_@3
+				
+				;  dup 16 +2 ~r
+				;
+				;	@I @A~r
+				;
+				;		@fc
+				;
+				;		@I 0
+				;
+				;	   ;  dup 16 +2 ~R
+				;	   ;
+				;	   ;	@Y @B~R
+				;	   ;
+				;	   ;		@BR~R
+				;	   ;
+				;	   ;		@0@1	r~r, r~R
+				;
+				;		@E
+				;
+				;			fatal		str2(@0,@1) ": bad register: " str( @3 )
+				;
+				;			@e
+				;
+				;		@e
+
+				.if @f
+				
+					fatal		str2(@0,@1) ": bad register(0): " str( @2 )
+					
+					.endif
+
+			.else
+				
+				fatal		str2(@0,@1) ": instruction val not supported"
+				
+				.endif
+				
+		.else
+			
+			fatal		str2(@0,@1) ": instruction val not supported"
+			
+			.endif
+				
+	.endm
+
+;___________________________________________________________
+.macro mnemov_reg_regval ;##################################
+
+		; 0,1		- mnemonic1
+		; 2,3		- mnemonic2
+		; 4		- register
+		; 5		- register or immediate
+		;_____________________________
+		;
+		; mov
+		;_____________________________
+
+		.if isreg( @4 )
+
+			;  getmask	@4
+
+			.if isreg( @5 )
+
+				.set	@B	= reg( @5 )
+
+				;  dup 16 0+2 ~r
+				;
+				;	@A_~r
+				;
+				;	@I @a
+				;
+				;		@I @a == 3
+				;
+				;			@fs
+				;
+				;			;  dup 16 0+2 ~R
+				;			;
+				;			;	@B_~R
+				;			;
+				;			;	@I @f && @b
+				;			;
+				;			;		@fc
+				;			;
+				;			;		@I @b == 1
+				;			;
+				;			;			@BR~R
+				;			;
+				;			;			@0@1	r~r, r~R
+				;			;
+				;			;			.set	@a = 2
+				;			;
+				;			;		@Y @b == 2
+				;			;
+				;			;			@BR~R+1
+				;			;
+				;			;			@0@1	r~r, r~R+1
+				;			;
+				;			;			.set	@a = 2
+				;			;
+				;			;		@E
+				;			;
+				;			;			@BR~R
+				;			;
+				;			;			@BR~R+1
+				;			;
+				;			;			@2@3	r~r, r~R
+				;			;				
+				;			;			@e
+				;			;
+				;			;		@e
+				;
+				;			@I @a != 2 && @f
+				;
+				;				@0@1	r~r, zero
+				;
+				;				@0@1	r~r+1, zero
+				;
+				;				@e
+				;
+				;			@e
+				;
+				;		@I @a == 2
+				;
+				;			@fs
+				;
+				;			;  dup 16 0+2 ~R
+				;			;
+				;			;	@B_~R
+				;			;
+				;			;	@I @f && @b
+				;			;
+				;			;		@fc
+				;			;
+				;			;		@I @b == 1
+				;			;
+				;			;			@BR~R
+				;			;
+				;			;			@0@1	r~r+1, r~R
+				;			;
+				;			;		@Y @b == 2
+				;			;
+				;			;			@BR~R+1
+				;			;
+				;			;			@0@1	r~r+1, r~R+1
+				;			;
+				;			;		@E
+				;			;
+				;			;			@BR~R
+				;			;
+				;			;			@0@1	r~r+1, r~R
+				;			;
+				;			;			@e
+				;			;
+				;			;		@e
+				;			
+				;			@I @f
+				;
+				;				@0@1	r~r+1, zero
+				;
+				;				@e
+				;
+				;			@e
+				;
+				;		@I @a == 1
+				;	
+				;			@fs
+				;
+				;			;  dup 16 0+2 ~R
+				;			;
+				;			;	@B_~R
+				;			;
+				;			;	@I @f && @b
+				;			;
+				;			;		@fc
+				;			;
+				;			;		@I @b == 1
+				;			;
+				;			;			@BR~R
+				;			;
+				;			;			@0@1	r~r, r~R
+				;			;
+				;			;		@Y @b == 2
+				;			;
+				;			;			@BR~R+1
+				;			;
+				;			;			@0@1	r~r, r~R+1
+				;			;
+				;			;		@E
+				;			;
+				;			;			@BR~R
+				;			;
+				;			;			@0@1	r~r, r~R
+				;			;				
+				;			;			@e
+				;			;
+				;			;		@e
+				;
+				;			@I @f
+				;
+				;				@0@1	r~r, zero
+				;
+				;				@e
+				;
+				;			@e
+				;
+				;		@e
+
+			.else
+
+				; mov	reg, val
+
+				fatal		str2(@0,@1) ":  " str2(@0,@1) "   ..., val - not supported"
+
+				.endif
+
+		.else
+			
+			fatal		str2(@0,@1) ":  " str2(@0,@1) "   val, ... - not supported"
+			
+			.endif
+				
+	.endm
+
+
+;___________________________________________________________
+.macro mnemul_reg_reg ;#####################################
+
+		; 0,1		- mnemonic
+		; 2		- register
+		; 3		- register
+		;_____________________________
+		;
+		; mul, muls, mulsu, fmul, fmuls, fmulsu
+		;_____________________________
+
+		.if isreg( @2 )
+		
+			;  getmask	@2
+			
+			.if isreg( @3 )
+			
+				.set	@B = reg( @3 )
+				
+				.set	@cb = @REGL_@3
+				
+				.if @c < 2
+				
+					.if @cb < 2
+					
+						; direct instruction
+						
+						;  dup 32 ~r
+						;
+						;	@I @A~r
+						;
+						;		@I 0
+						;
+						;	   ;  dup 32 ~R
+						;	   ;
+						;	   ;	@Y @B~R
+						;	   ;
+						;	   ;		@0@1	r~r, r~R
+						;
+						;			@e
+						;
+						;		@e
+						
+					.else
+						
+						fatal		str2(@0,@1) ": multiregisters not supported"
+
+						.endif
+				
+				.else
+					
+					fatal		str2(@0,@1) ": multiregisters not supported"
+					
+					.endif
+				
+			.else
+				
+				fatal		str2(@0,@1) ":  " str2(@0,@1) "   reg, val - not supported"
+				
+				.endif
+				
+		.else
+			
+			fatal		str2(@0,@1) ":  " str2(@0,@1) "   val, ... - not supported"
+			
+			.endif
+		
+	.endm
+
+;___________________________________________________________
+.macro mnem_reg_regval_brne ;###############################
+
+		; 0,1		- mnemonic1
+		; 2,3		- mnemonic2
+		; 4		- register0
+		; 5		- register1 / value
+		;_____________________________
+		;
+		; cp
+		;_____________________________
+
+
+		.if isreg( @4 )
+	
+			;  getmask	@4
+	
+			.if isreg( @5 )
+	
+				.set	@B	= @REG_@5
+	
+				.set	@ce	= @REGL_@5
+	
+				.if @c > @ce
+	
+					.set	@cb = @c - @ce
+	
+					.set	@ce = 0
+	
+				.elif @c < @ce
+	
+					.set	@ce = @ce - @c
+	
+					.set	@cb = 0
+	
+				.else
+	
+					.set	@cb = 0
+	
+					.set	@ce = 0
+	
+					.endif
+		
+				;  dup 32 -1 ~r
+				;
+				;	@I @A~r
+				;
+				;		@I @cb
+				;
+				;			@cbd
+				;
+				;			or	r~r, r~r
+				;
+				;			@cd
+				;
+				;			@I @c > 0
+				;
+				;				brne	lx
+				;
+				;				@e
+				;
+				;		@E
+				;
+				;			@fs
+				;
+				;		;  dup 32 -1 ~R
+				;		;
+				;		;	@I @f && @B~R
+				;		;
+				;		;		@BR~R
+				;		;
+				;		;		@I @ce
+				;		;
+				;		;			@ced
+				;		;
+				;		;		@E
+				;		;
+				;		;			@0@1	r~r, r~R
+				;		;
+				;		;			@fc
+				;		;
+				;		;			@cd
+				;		;
+				;		;			@I @c > 0
+				;		;
+				;		;				brne	lx
+				;		;
+				;		;				@e
+				;		;
+				;		;			@e
+				;		;
+				;		;		@e
+				;
+				;			@e
+				;
+				;		@e
+	
+			.else
+	
+				@vs	@5
+	
+				;  dup 32 -1 ~r
+				;
+				;	@I @A~r
+				;
+				;		@cd
+				;
+				;		@2@3	r~r, 0xFF & ( @v >> ( @c * 8 ) )
+				;
+				;		@I @c > 0
+				;
+				;			brne	lx
+				;
+				;			@e
+				;
+				;		@e
+	
+				.endif
+	
+			lx:
+
+		.else
+			
+			fatal		str2(@0,@1) ":  " str2(@0,@1) "   val, ... - not supported"
+			
+			.endif
+
+	.endm
+
+;___________________________________________________________
+.macro mnem_reg_val_brne ;##################################
+
+		; 0,1		- mnemonic1
+		; 2,3		- pseudomnemonic
+		; 4		- register0
+		; 5		- value
+		;_____________________________
+		;
+		; cpi
+		;_____________________________
+
+
+		.if isreg( @4 )
+	
+			;  getmask	@4
+	
+			@vs	@5
+	
+			;  dup 32 -1 ~r
+			;
+			;	@I @A~r
+			;
+			;		@cd
+			;
+			;		@I ~r < 16
+			;
+			;			@2@3	r~r, 0xFF & ( @v >> ( @c * 8 ) )
+			;
+			;
+			;
+			;		@E
+			;
+			;			@0@1	r~r, 0xFF & ( @v >> ( @c * 8 ) )
+			;
+			;			@e
+			;
+			;		@I @c > 0
+			;
+			;			brne	lx
+			;
+			;			@e
+			;
+			;		@e
+	
+			lx:
+
+		.else
+			
+			fatal		str2(@0,@1) ":  " str2(@0,@1) "   val, ... - not supported"
+			
+			.endif
+
+	.endm
+
+;___________________________________________________________
+.macro mnem_reg_reg ;#######################################
+
+		; 0,1		- mnemonic1
+		; 2		- register0
+		; 3		- register1
+		;_____________________________
+		;
+		; cpc, cpse
+		;_____________________________
+
+		.if isreg( @2 )
+	
+			;  getmask	@2
+	
+			.if isreg( @3 )
+	
+				.set	@B	= @REG_@3
+	
+			 ;  dup 32 ~r
+			 ;
+			 ;	@I @A~r
+			 ;
+			 ;		@I 0
+			 ;
+			 ;	   ;  dup 32 ~R
+			 ;	   ;
+			 ;	   ;	@Y @B~R
+			 ;	   ;
+			 ;	   ;		@BR~R
+			 ;	   ;
+			 ;	   ;		@0@1	r~r, r~R
+			 ;
+			 ;			@e
+			 ;
+			 ;		@e
+	
+			.else
+	
+				fatal		str2(@0,@1) ": operand1 must be register: " str( @3 )
+	
+				.endif
+		.else
+			
+			fatal		str2(@0,@1) ":  " str2(@0,@1) "   val, ... - not supported"
+			
+			.endif
+
+	.endm
+
+;___________________________________________________________
+.macro mnem6_reg_regval ;###################################
+
+		; 0,1		- mnemonic1
+		; 2,3		- mnemonic2
+		; 4,5		- tail mnemonic
+		; 6,7		- mnemonicw
+		; 8,9		- mnemonic3
+		; 10,11	- mnemonic4
+		; 12		- register0
+		; 13		- register1 / value
+		;_____________________________
+		;
+		; add, sub
+		;_____________________________
+
+		.if isreg( @12 )
+	
+			;  getmask @12
+	
+			.if isreg( @13 )
+	
+				.set	@B	= @REG_@13
+	
+				;  dup 32 ~r
+				;
+				;	@I @A~r
+				;
+				;		@I 0
+				;
+				;	;  dup 32 ~R
+				;	;
+				;	;	@Y @B~R
+				;	;
+				;	;		@BR~R
+				;	;
+				;	;		@I @f
+				;	;
+				;	;			@0@1	r~r, r~R
+				;	;
+				;	;			@fc
+				;	;
+				;	;		@E
+				;	;
+				;	;			@2@3	r~r, r~R
+				;	;
+				;	;			@e
+				;		
+				;		@E
+				;
+				;			@4@5	r~r, 0
+				;
+				;			@e
+				;
+				;		@e
+	
+			.else
+	
+				.set	@v	= @13
+	
+				.if 64 > ( @v & 0xFFFF )
+	
+					.if 0
+	
+				   ;  dup 4 24+2 ~r
+				   ;
+				   ;	@Y @_ispair( ~r )
+				   ;
+				   ;		@AR_~r
+				   ;
+				   ;		@6@7	r~r, @v & 0xFFFF
+				   ;
+				   ;		.set	@v = @v >> 16
+				   ;
+				   ;		@fc
+	
+						.endif
+	
+					.endif
+	
+				.if @A
+	
+					;  dup 32 ~r
+					;
+					;	@I @A~r
+					;
+					;		@I @f
+					;
+					;			@8@9		r~r, @v & 0xFF
+					;
+					;			@fc
+					;
+					;		@E
+					;
+					;			@10@11	r~r, @v & 0xFF
+					;
+					;			@e
+					;
+					;		@vr
+					;
+					;		@e
+	
+					.endif
+	
+				.endif
+	
+		.else
+			
+			fatal		str2(@0,@1) ":  " str2(@0,@1) "   val, ... - not supported"
+			
+			.endif
+
+	.endm
+	
+;___________________________________________________________
+.macro mnem3_reg_regval ;###################################
+
+		; 0,1		- mnemonic1
+		; 2,3		- mnemonic2
+		; 4,5		- mnemonicw
+		; 6,7		- pseudomnemonic1
+		; 8,9		- pseudomnemonic2
+		; 10		- register0
+		; 11		- value
+		;_____________________________
+		;
+		; subi, addi
+		;_____________________________
+
+		.if isreg( @10 )
+	
+			;  getmask	@10
+	
+			.set	@v	= @11
+	
+			.if 64 > ( @v & 0xFFFF )
+	
+				.if 0
+	
+			   ;  dup 4 24+2 ~r
+	  		   ;
+			   ;	@Y @_ispair( ~r )
+			   ;
+			   ;		@AR_~r
+			   ;
+			   ;		@4@5	r~r, 0xFFFF & @v
+			   ;
+			   ;		.set	@v = @v >> 16
+			   ;
+			   ;		@fc
+	
+					.endif
+	
+				.endif
+	
+			.if @A
+
+			   ;  dup 32 ~r
+			   ;
+			   ;	@I @A~r
+			   ;
+			   ;		@I @f
+			   ;
+			   ;			@I ~r < 16
+			   ;
+			   ;				@6@7	r~r, 0xFF & @v
+			   ;
+			   ;			@E
+			   ;
+			   ;				@0@1	r~r, 0xFF & @v
+			   ;
+			   ;				@e
+			   ;
+			   ;			@fc
+			   ;
+			   ;		@E
+			   ;
+			   ;			@I ~r < 16
+			   ;
+			   ;				@8@9	r~r, 0xFF & @v
+			   ;
+			   ;			@E
+			   ;
+			   ;				@2@3	r~r, 0xFF & @v
+			   ;
+			   ;				@e
+			   ;
+			   ;			@e
+			   ;
+			   ;		@vr
+			   ;
+			   ;		@e
+	
+				.endif
+	
+		.else
+			
+			fatal		str2(@0,@1) ":  " str2(@0,@1) "   val, ... - not supported"
+			
+			.endif
+
+	.endm
+
+;___________________________________________________________
+.macro mnemw_reg_val ;######################################
+
+		; 0,1		- mnemonic1
+		; 2		- register0
+		; 3		- value
+		;_____________________________
+		;
+		;	adiw, sbiw
+		;_____________________________
+	
+		.if isreg( @2 )
+		
+			;  getmask	@2
+			
+				@I 0
+	
+			;  dup 4 24+2 ~r
+			;
+			;	@Y @_ispair( ~r ) || @A~r
+			;
+			;		@AR_~r
+			;
+			;		@0@1	r~r, @3
+	
+				.else
+	
+					fatal		"%1: invalid register: " str( @2 )
+	
+					.endif
+	
+		.else
+			
+			fatal		str2(@0,@1) ":  " str2(@0,@1) "   val, ... - not supported"
+			
+			.endif
+
+	.endm
+
+;___________________________________________________________
+.macro mnem_reg_val ;#######################################
+
+		; 0,1		- mnemonic1
+		; 2,3		- pseudomnemonic
+		; 4		- not-value
+		; 5		- register0
+		; 6		- value
+		;_____________________________
+		;
+		;	ldi, andi, ori, eori, sbci, adci, sbr, cbr
+		;_____________________________
+
+		@vs		@6
+
+		.set	@nv = @4
+		
+		.if @nv == 257
+
+			@vs	1 << @v
+			
+			.set	@nv = 0x00
+			
+		.elif @nv == 258
+
+			@vs	~ ( 1 << @v )
+			
+			.set	@nv = 0xFF
+			
+			.endif
+	
+		.if isreg( @5 )
+	
+			;  getmask	@5
+
+			;  dup 32 ~r
+			;
+			;	@I @A~r
+			;
+			;		@I @c == 1 || low( @v ) != @nv
+			;
+			;			@I ~r < 16
+			;
+			;				@2@3	r~r, low( @v )
+			;
+			;			@E
+			;
+			;				@0@1	r~r, low( @v )
+			;
+			;				@e
+			;
+			;			@e
+			;
+			;		@vr
+			;
+			;		@e
+	
+		.else
+			
+			fatal		str2(@0,@1) ":  " str2(@0,@1) "   val, ... - not supported"
+			
+			.endif
+
+	.endm
+
+;___________________________________________________________
+.macro mnem_reg_regval ;####################################
+
+		; 0,1		- mnemonic1
+		; 2,3		- mnemonic2
+		; 4,5		- mnemonic3
+		; 6,7		- pseudomnemonic
+		; 8		- not-value
+		; 9		- register0
+		; 10		- register1 / value
+		;_____________________________
+		;
+		;	and, or, eor, sbc, adc
+		;_____________________________
+	
+		.if isreg( @9 )
+	
+			;  getmask	@9
+	
+			.if isreg( @10 )
+	
+				; register-register
+	
+				.set	@B	= @REG_@10
+	
+				;  dup 32 ~r
+				;
+				;	@I @A~r
+				;
+				;		@I 0
+				;
+				;	   ;  dup 32 ~R
+				;	   ;
+				;	   ;	@Y @B~R
+				;	   ;
+				;	   ;		@BR~R
+				;	   ;
+				;	   ;		@0@1	r~r, r~R
+				;
+				;		@E
+				;
+				;			@2@3	r~r, zero
+				;
+				;			@e
+				;
+				;		@e
+	
+			.else
+	
+				; register-value
+
+				@vs		@10
+		
+				;  dup 32 ~r
+				;
+				;	@I @A~r
+				;
+				;		@I @c == 1 || low( @v ) != @8
+				;
+				;			@I ~r < 16
+				;
+				;				@6@7	r~r, low( @v )
+				;
+				;			@E
+				;
+				;				@4@5	r~r, low( @v )
+				;
+				;				@e
+				;
+				;			@e
+				;
+				;		@vr
+				;
+				;		@e
+	
+				.endif
+	
+		.else
+			
+			fatal		str2(@0,@1) ":  " str2(@0,@1) "   val, ... - not supported"
+			
+			.endif
+
+	.endm
+	
+;___________________________________________________________
+.macro mnem_reg_bw ;########################################
+
+		; 0,1		- mnemonic1
+		; 2,3		- pseudomnemonic1
+		; 4,5		- mnemonic2
+		; 6,7		- pseudomnemonic2
+		; 8		- register
+		;_____________________________
+		;
+		; pop, ror
+		;_____________________________
+
+		.if isreg( @8 )
+	
+			;  getmask	@8
+
+			;  dup 32 -1 ~r
+			;
+			;	@I @A~r
+			;
+			;		@I @f
+			;
+			;			@fc
+			;
+			;			@I ~r < 16
+			;
+			;				@2@3	r~r
+			;
+			;			@E
+			;
+			;				@0@1	r~r
+			;
+			;				@e
+			;
+			;		@E
+			;
+			;			@I ~r < 16
+			;
+			;				@6@7	r~r
+			;
+			;			@E
+			;
+			;				@4@5	r~r
+			;
+			;				@e
+			;
+			;			@e
+			;
+			;		@e
+
+		.else
+			
+			fatal		str2(@0,@1) ":  " str2(@0,@1) "   val, ... - not supported"
+			
+			.endif
+
+	.endm
+
+;___________________________________________________________
+.macro mnem_reg ;###########################################
+
+		; 0,1		- mnemonic1
+		; 2,3		- pseudomnemonic1
+		; 4,5		- mnemonic2
+		; 6,7		- pseudomnemonic2
+		; 8		- register
+		;_____________________________
+		;
+		; swap, rol, lsl, push, neg, com
+		;_____________________________
+
+		.if isreg( @8 )
+	
+			;  getmask	@8
+	
+			;  dup 32 ~r
+			;
+			;	@I @A~r
+			;
+			;		@I @f
+			;
+			;			@fc
+			;
+			;			@I ~r < 16
+			;
+			;				@2@3	r~r
+			;
+			;			@E
+			;
+			;				@0@1	r~r
+			;
+			;				@e
+			;
+			;		@E
+			;
+			;			@I ~r < 16
+			;
+			;				@6@7	r~r
+			;
+			;			@E
+			;
+			;				@4@5	r~r
+			;
+			;				@e
+			;
+			;			@e
+			;		@e
+
+		.else
+			
+			fatal		str2(@0,@1) ":  " str2(@0,@1) "   val, ... - not supported"
+			
+			.endif
+
+	.endm
+
+;___________________________________________________________
+.macro mnem_reg_bit ;#######################################
+	
+		; 0,1		- mnemonic1
+		; 2		- register
+		; 3		- bit
+		;_____________________________
+		;
+		; bst, bld, sbrs, sbrc
+		;_____________________________
+			
+		.if isreg( @2 )
+	
+			;  getmask	@2
+	
+			@vs		@3 & 7
+	
+			@is		@3 >> 3
+	
+			.if @i >= @c
+	
+				fatal	str2(@0,@1) ": bit is out of register"
+	
+				.endif
+	
+			;  dup 32 ~r
+			;
+			;	@I @A~r
+			;
+			;		@I ! @i
+			;
+			;			@0@1	r~r, @v
+			;
+			;			@e
+			;
+			;		@id
+			;
+			;		@e
+			
+		.else
+			
+			fatal		str2(@0,@1) ":  " str2(@0,@1) "  val, ... - not supported"
+			
+			.endif
+	
+	.endm
+
+;___________________________________________________________
+.macro mneminc_reg ;########################################
+
+		; 0		- register
+		;_____________________________
+		;
+		; inc
+		;_____________________________
+
+		.if isreg( @0 )
+	
+			;  getmask	@0
+	
+			.if @c == 2
+				
+				@I 0
+		
+			   ;  dup 4 24+2 ~r
+			   ;
+			   ;	@Y @_ispair( ~r )
+			   ;
+			   ;		adiw	r~r, 1
+			   ;
+			   ;		@fc
+			   
+					.endif
+
+				.endif
+		
+			.if @f
+
+			   ;  dup 32 ~r
+			   ;
+			   ;	@I @A~r
+			   ;
+			   ;		inc	r~r
+			   ;
+			   ;		@cd
+			   ;
+			   ;		@I @c
+			   ;
+			   ;			brne	lx
+			   ;
+			   ;			@e
+			   ;
+			   ;		@e
+
+				.endif
+	
+		   lx:
+
+		.else
+
+			fatal		"inc:  inc  val, ... - not supported"
+
+			.endif
+			
+	.endm
+
+;___________________________________________________________
+.macro mnemdec_reg ;########################################
+
+		; 0		- register
+		;_____________________________
+		;
+		; dec
+		;_____________________________
+
+		.if isreg( @0 )
+		
+			;  getmask	@0
+			
+			.if @c < 2
+		
+				@I 0
+
+			   ;  dup 32 ~r
+			   ;
+			   ;	@Y @A~r
+			   ;
+			   ;		dec	r~r
+
+					.endif
+
+			.else
+			
+				@I 0
+	
+			   ;  dup 4 24+2 ~r
+			   ;
+			   ;	@Y @_ispair( ~r )
+			   ;
+			   ;		@AR_~r
+			   ;
+			   ;		sbiw	r~r, 1
+			   ;
+			   ;		@fc
+
+					.endif
+
+			   ;  dup 32 ~r
+			   ;
+			   ;	@I @A~r
+			   ;
+			   ;		@I @f
+			   ;
+			   ;			@I ~r < 16
+			   ;
+			   ;				sec
+			   ;				sbc	r~r, zero
+			   ;
+			   ;			@E
+			   ;
+			   ;				subi	r~r, 1
+			   ;
+			   ;				@e
+			   ;
+			   ;			@fc
+			   ;
+			   ;		@E
+			   ;
+			   ;			sbc	r~r, zero
+			   ;
+			   ;			@e
+			   ;
+			   ;
+			   ;		@e
+
+				.endif
+	
+		.else
+
+			fatal		"dec:  dec  val, ... - not supported"
+
+			.endif
+
+	   lx:
+
+	.endm
+
+;___________________________________________________________
+.macro mnem2_reg_port ;#####################################
+
+		; 0,1		- mnemonic1
+		; 2,3		- mnemonic2
+		; 4		- register
+		; 5		- port
+		;_____________________________
+		;
+		; in
+		;_____________________________
+	
+		.if isreg( @4 )
+	
+			;  getmask	@4
+	
+			@vs	@5
+	
+			;  dup 32 ~r
+			;
+			;	@I @A~r
+			;
+			;		@I @v < 64
+			;
+			;			@0@1	r~r, @v
+			;
+			;		@E
+			;
+			;			@2@3	r~r, @v
+			;
+			;			@e
+			;
+			;		@vi
+			;
+			;		@I @v == 0x40
+			;
+			;			.set	@v = 0x60
+			;
+			;			@e
+			;
+			;		@e
+
+		.else
+
+			fatal		"in:  in   val, ... - not supported"
+
+			.endif
+
+	.endm
+
+;___________________________________________________________
+.macro mnem2_port_reg ;#####################################
+
+		; 0,1		- mnemonic1
+		; 2,3		- mnemonic2
+		; 4		- port
+		; 5		- register
+		;_____________________________
+		;
+		; out
+		;_____________________________
+	
+		.if isreg( @5 )
+	
+			;  getmask	@5
+	
+			@vs	@4 + @c - 1
+	
+			.if @4 < 64 && @v >= 64
+	
+				.set	@v = @v + 32
+	
+				.endif
+	
+			;  dup 32 -1 ~r
+			;
+			;	@I @A~r
+			;
+			;		@I @v < 64
+			;
+			;			@0@1	@v, r~r
+			;
+			;		@E
+			;
+			;			@2@3	@v, r~r
+			;
+			;			@e
+			;
+			;		@vd
+			;
+			;		@I @v == 0x5F
+			;
+			;			.set	@v = 0x3F
+			;
+			;			@e
+			;
+			;		@e
+
+		.else
+
+			fatal		str2(@0,@1) ":  " str2(@0,@1) "  ..., val - not supported"
+
+			.endif
+
+	.endm
+
+;___________________________________________________________
+.macro mnem_reg_adr ;#######################################
+
+		; 0,1		- mnemonic
+		; 2		- register
+		; 3		- address
+		;_____________________________
+		;
+		; lds
+		;_____________________________
+
+		.if isreg( @2 )
+	
+			;  getmask	@2
+	
+			@vs		@3
+	
+			;  dup 32 ~r
+			;
+			;	@I @A~r
+			;
+			;		@0@1	r~r, @v
+			;
+			;		@vi
+			;
+			;		@e
+	
+		.else
+
+			fatal		str2(@0,@1) ":  " str2(@0,@1) "  val, ... - not supported"
+
+			.endif
+		
+	.endm
+
+;___________________________________________________________
+.macro mnem_adr_reg ;#######################################
+
+		; 0,1		- mnemonic
+		; 2		- address
+		; 3		- register
+		;_____________________________
+		;
+		; sts
+		;_____________________________
+	
+		.if isreg( @3 )
+	
+			;  getmask	@3
+	
+			@vs		@2 + @c - 1
+	
+			;  dup 32 -1 ~r
+			;
+			;	@I @A~r
+			;
+			;		@0@1	@v, r~r
+			;
+			;		@vd
+			;
+			;		@e
+
+		.else
+			
+			fatal		str2(@0,@1) ":  " str2(@0,@1) "  val, ... - not supported"
+
+			.endif
+		
+	.endm
+
+;___________________________________________________________
+.macro mnem_reg_offset ;####################################
+
+		; 0,1		- mnemonic
+		; 2		- register
+		; 3		- offset
+		;_____________________________
+		;
+		; ldd
+		;_____________________________
+	
+		.if isreg( @2 )
+	
+			;  getmask	@2
+	
+			;  dup 32 ~r 
+			;	
+			;	@I @A~r
+			;
+			;		@0@1	r~r, @3 + @i
+			;
+			;		@ii
+			;
+			;		@e
+	
+		.else
+			
+			fatal		str2(@0,@1) ":  " str2(@0,@1) "  val, ... - not supported"
+
+			.endif
+		
+	.endm
+	
+;___________________________________________________________
+.macro mnem_offset_reg ;####################################
+
+		; 0,1		- mnemonic
+		; 2		- offset
+		; 3		- register
+		;_____________________________
+		;
+		; std
+		;_____________________________
+
+		.if isreg( @3 )
+	
+			;  getmask	@3
+	
+			;  dup 32 -1 ~r
+			;	
+			;	@I @A~r
+			;
+			;		@cd
+			;
+			;		@0@1	@2 + @c, r~r
+			;
+			;		@e
+	
+		.else
+			
+			fatal		str2(@0,@1) ":  " str2(@0,@1) "  val, ... - not supported"
+
+			.endif
+		
+	.endm
+
+;___________________________________________________________
+.macro mnem_reg_param ;#####################################
+
+		; 0,1		- mnemonic1
+		; 2		- register
+		; 3		- parameter
+		;_____________________________
+		;
+		; ld, lpm, elpm
+		;_____________________________
+
+		.if isreg( @2 )
+	
+			;  getmask	@2
+	
+			;  dup 32 ~r
+			;	
+			;	@I @A~r
+			;
+			;		@0@1	r~r, @3
+			;
+			;		@e
+	
+		.else
+
+			fatal		str2(@0,@1) ":  " str2(@0,@1) "  val, ... - not supported"
+
+			.endif
+		
+	.endm
+
+;___________________________________________________________
+.macro mnem_param_reg ;#####################################
+
+		; 0,1		- mnemonic
+		; 2		- paramter
+		; 3		- register
+		;_____________________________
+		;
+		; st
+		;_____________________________
+
+		.if isreg( @3 )
+	
+			;  getmask	@3
+	
+			;  dup 32 -1 ~r
+			;	
+			;	@I @A~r
+			;
+			;		@0@1	@2, r~r
+			;
+			;		@e
+	
+		.else
+			
+			fatal		str2(@0,@1) ":  " str2(@0,@1) "  val, ... - not supported"
+
+			.endif
+		
+	.endm
+
+;_________________________________________________________________
+;## INSTRUCTION SET DEF(61) ######################################
+
+
+
+; ____________________________________________________
+
+;  mac  define_push
+;
+;	#define push	mnem_reg		pus,h, pus,h, pus,h, pus,h,
+
+;_______________________________________________
+;
+;  mac  define_pop
+;
+;	#define pop		mnem_reg_bw		po,p, po,p, po,p, po,p, 
+
+;_____________________________________________________
+;
+;  mac define_lds
+;
+;	#define lds		mnem_reg_adr	l,ds,
+
+;_______________________________________________
+;
+;  mac define_sts
+;
+;	#define sts		mnem_adr_reg	s,ts,
+
+;_____________________________________________________
+;
+;  mac define_ldd
+;
+;	#define ldd		mnem_reg_offset	l,dd, 
+
+;_______________________________________________
+;
+;  mac define_std
+;
+;	#define std		mnem_offset_reg	s,td,
+
+;_____________________________________________________
+;
+;  mac define_ld
+;
+;	#define ld		mnem_reg_param	l,d,
+
+;_______________________________________________
+;
+;  mac define_st
+;
+;	#define st		mnem_param_reg	s,t, 
+
+;_____________________________________________________
+;
+;  mac define_lpm
+;
+;	#define lpm 	mnem_reg_param	l,pm,
+	
+;_______________________________________________
+;
+;  mac define_elpm
+;
+;	#define elpm 	mnem_reg_param	el,pm,
+
+;_____________________________________________________
+;
+;  mac define_in
+;
+;	#define in		mnem2_reg_port	i,n, l,ds,
+
+;_______________________________________________
+;
+;  mac define_out
+;
+;	#define out		mnem2_port_reg	o,ut, s,ts, 
+
+;_______________________________________________
+;
+;  mac define_outi
+;
+;	#define		outi			outi_		
+
+;_______________________________________________
+;
+;  mac define_outiw
+;
+;	#define		outiw			outiw_
+
+;_____________________________________________________
+;
+;  mac define_mov
+;
+;	#define mov		mnemov_reg_regval	m,ov, m,ovw,
+
+;_______________________________________________
+;
+;  mac define_movw
+;
+;	#define movw	mnem_pair_pair	m,ovw,
+
+;_______________________________________________
+;
+;  mac define_movi
+;
+;	#define movi	mnem_reg_val	l,di, l,di_, 256,
+
+;_____________________________________________________
+;
+;  mac define_ser
+;
+;	#define ser		mnem_reg		se,r, se,r_, se,r, se,r_, 
+
+;_______________________________________________
+;
+;  mac define_clr
+;
+;	#define clr		mnem_reg		cl,r, cl,r_, cl,r, cl,r_, 
+
+;_____________________________________________________
+;
+;  mac define_bst
+;
+;	#define bst		mnem_reg_bit	bs,t,
+
+;_______________________________________________
+;
+;  mac define_bld
+;
+;	#define bld		mnem_reg_bit	bl,d,
+
+;_____________________________________________________
+;
+;  mac define_sbrs
+;
+;	#define sbrs	mnem_reg_bit	sb,rs,
+
+;_______________________________________________
+;
+;  mac define_sbrc
+;
+;	#define sbrc	mnem_reg_bit	sb,rc,
+
+;_____________________________________________________
+;
+;  mac define_rol
+;
+;	#define rol		mnem_reg		ro,l, r,ol, ro,l, r,ol, 
+
+;_______________________________________________
+;
+;  mac define_ror
+;
+;	#define ror		mnem_reg_bw		ro,r, ro,r, ro,r, ro,r, 
+
+;_____________________________________________________
+;
+;  mac define_lsl
+;
+;	#define lsl		mnem_reg		l,sl, l,sl, r,ol, r,ol, 
+
+;_______________________________________________
+;
+;  mac define_lsr
+;
+;	#define lsr		mnem_reg_bw		l,sr, l,sr, ro,r, ro,r, 
+
+;_______________________________________________
+;
+;  mac define_asr
+;
+;	#define asr		mnem_reg_bw		a,sr, a,sr, ro,r, ro,r, 
+
+;_____________________________________________________
+;
+;  mac define_inc
+;
+;	#define inc		mneminc_reg
+
+;_______________________________________________
+;
+;  mac define_dec
+;
+;	#define dec		mnemdec_reg
+
+;_____________________________________________________
+;
+;  mac  define_and
+;
+;	#define and		mnem_reg_regval	a,nd, nu,ll_, a,ndi, a,ndi_	, 0xFF,
+
+;_______________________________________________
+;
+;  mac  define_andi
+;
+;	#define andi	mnem_reg_val	a,ndi, a,ndi_, 0xFF,
+
+;_____________________________________________________
+;
+;  mac  define_or
+;
+;	#define or		mnem_reg_regval	o,r, nu,ll_, o,ri	, o,ri_, 0,
+
+;_______________________________________________
+;
+;  mac  define_ori
+;
+;	#define ori		mnem_reg_val	o,ri, o,ri_, 0x00,
+
+;_____________________________________________________
+;
+;  mac  define_eor
+;
+;	#define eor		mnem_reg_regval	eo,r, nu,ll_, eo,ri_, eo,ri_	, 0,
+
+;_______________________________________________
+;
+;  mac  define_xor
+;
+;	#define xor		eor
+
+;_______________________________________________
+;
+;  mac define_eori
+;
+;	#define eori	mnem_reg_val	eo,ri_, eo,ri_, 0x00,
+
+;_______________________________________________
+;
+;  mac define_xori
+;
+;	#define xori	eori
+
+;_____________________________________________________
+;
+;  mac  define_sbr
+;
+;	#define sbr		mnem_reg_val	o,ri, o,ri_, 257,
+
+;_______________________________________________
+;
+;  mac  define_cbr
+;
+;	#define cbr		mnem_reg_val	a,ndi, a,ndi_, 258,
+
+;_____________________________________________________
+;
+;  mac  define_neg
+;
+;	#define neg		mnem_reg		n,eg, n,eg, c,om, c,om,
+
+;_______________________________________________
+;
+;  mac  define_com
+;
+;	#define com		mnem_reg		c,om, c,om, c,om, c,om, 
+
+;_____________________________________________________
+;
+;  mac define_add
+;
+;	#define add		mnem6_reg_regval	ad,d, ad,c, ad,ci_, ad,iw, ad,di_, ad,ci_, 
+
+;_______________________________________________
+;
+;  mac define_addi
+;
+;	#define addi	mnem3_reg_regval	a,ddi_, a,dci_, ad,iw, a,ddi_, a,dci_,
+
+;_____________________________________________________
+;
+;  mac  define_adc
+;
+;	#define adc		mnem_reg_regval	ad,c, ad,c, ad,ci_, ad,ci_	, 0xFFFF,
+
+;_______________________________________________
+;
+;  mac define_adci
+;
+;	#define adci	mnem_reg_val	a,dci_, a,dci_, 256,
+
+;_____________________________________________________
+;
+;  mac define_sub
+;
+;	#define sub		mnem6_reg_regval	su,b, sb,c, sb,ci, sb,iw, su,bi, sb,ci,
+
+;_______________________________________________
+;
+;  mac define_subi
+;
+;	#define subi	mnem3_reg_regval	su,bi, sb,ci, sb,iw, su,bi_, sb,ci_,
+
+;_____________________________________________________
+;
+;  mac  define_sbc
+;
+;	#define sbc		mnem_reg_regval	sb,c, sb,c, sb,ci, sb,ci_		, 0xFFFF,
+
+;_______________________________________________
+;
+;  mac  define_sbci
+;
+;	#define sbci	mnem_reg_val	sb,ci, sb,ci_, 256,
+
+;_____________________________________________________
+;
+;  mac define_adiw
+;
+;	#define adiw	mnemw_reg_val	ad,iw,
+
+;_______________________________________________
+;
+;  mac define_sbiw
+;
+;	#define sbiw	mnemw_reg_val	sb,iw,
+
+;_____________________________________________________
+;
+;  mac  define_swap
+;
+;	#define swap	mnem_reg		sw,ap, sw,ap, sw,ap, sw,ap, 
+
+;_____________________________________________________
+;
+;  mac define_cpc
+;
+;	#define cpc		mnem_reg_reg	c,pc,
+
+;_____________________________________________________
+;
+;  mac define_cpse
+;
+;	#define cpse	mnem_reg_reg	c,pse,
+
+;_____________________________________________________
+;
+;  mac define_cp
+;
+;	#define cp		mnem_reg_regval_brne	c,p, c,pi,
+
+;_______________________________________________
+;
+;  mac define_cpi
+;
+;	#define cpi		mnem_reg_val_brne		c,pi, c,pi_,
+
+;_____________________________________________________
+;
+;  mac define_ldi
+;
+;	#define ldi		mnem_reg_val	l,di, l,di_, 256,
+
+;_____________________________________________________
+;
+;  mac define_mul
+;
+;	#define mul		mnemul_reg_reg	mu,l,
+
+;_______________________________________________
+;
+;  mac define_muls
+;
+;	#define muls	mnemul_reg_reg	m,uls,
+
+;_______________________________________________
+;
+;  mac define_mulsu
+;
+;	#define mulsu	mnemul_reg_reg	m,ulsu,
+
+;_______________________________________________
+;
+;  mac define_fmul
+;
+;	#define fmul	mnemul_reg_reg	fm,ul,
+
+;_______________________________________________
+;
+;  mac define_fmuls
+;
+;	#define fmuls	mnemul_reg_reg	fm,uls,
+
+;_______________________________________________
+;
+;  mac define_fmulsu
+;
+;	#define fmulsu	mnemul_reg_reg	fm,ulsu,
+
+;_________________________________________________________________
+;## INSTRUCTION DEFINITION(?) ####################################
+;
+;	complex:	? instructions
+;
+;	pseudo:	? instructions
+; ____________________________________________________
+
+	;  define_push
+	;  define_pop
+
+	;  define_lds
+	;  define_sts
+
+	;  define_ldd
+	;  define_std
+
+	;  define_ld
+	;  define_st
+
+	;  define_lpm
+	;  define_elpm
+
+	;  define_in
+	;  define_out
+	;  define_outi
+	;  define_outiw
+
+	;  define_mov
+	;  define_movw
+	;  define_movi
+
+	;  define_ser
+	;  define_clr
+
+	;  define_bst
+	;  define_bld
+
+	;  define_sbrs
+	;  define_sbrc
+
+	;  define_rol
+	;  define_ror
+	;  define_lsl
+	;  define_lsr
+	;  define_asr
+
+	;  define_inc
+	;  define_dec
+
+	;  define_and
+	;  define_andi
+
+	;  define_or
+	;  define_ori
+
+	;  define_eor
+	;  define_xor
+	;  define_eori
+	;  define_xori
+
+	;  define_sbr
+	;  define_cbr
+
+	;  define_neg
+	;  define_com
+
+	;  define_add
+	;  define_addi
+
+	;  define_adc
+	;  define_adci
+
+	;  define_sub
+	;  define_subi
+
+	;  define_sbc
+	;  define_sbci
+
+	;  define_adiw
+	;  define_sbiw
+
+	;  define_swap
+
+	;  define_cpc
+
+	;  define_cpse
+
+	;  define_cp
+	;  define_cpi
+
+	;  define_ldi
+
+	;  define_mul
+	;  define_muls
+	;  define_mulsu
+
+	;  define_fmul
+	;  define_fmuls
+	;  define_fmulsu
+
+;_________________________________________________________________
+;## END ##########################################################
+
+

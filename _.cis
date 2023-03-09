@@ -1,0 +1,676 @@
+;# vasja 0074826733257
+
+; environment:
+;
+;	complex instruction set
+;
+;	asm3d assembly (attach/detach/amount/mount/stage)
+;
+;	flag extension (sbf/cbf/sbfs/sbfc)
+;
+;	io definition (sbis/sbic/sbi/cbi)
+;
+;	multithread core (switch/core/def thread/thread)
+;
+;	The include file is large (about 400K))
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+;___________________________________________________________
+;###########################################################
+;
+;	internals:
+;
+;		@REG_register		- register mask
+;
+;		@REGT_register		- register type ( 0 - normal reg; 1 - shadow reg; 2 - subregister )
+;
+;		@REGL_register		- register width
+;
+;		@REGB_register		- first cpu register
+;
+;		@REGE_register		- last cpu register
+;
+;
+
+
+;	external requirements:
+;
+;		default
+;		fatal
+;		_params0_
+;		debug()
+;		str() /str2
+
+
+
+
+;_______________________________________________________________________
+;# GET CONFIG ##########################################################
+
+	_default	@USEREG, 0b11111111111100000000000000000011
+	;_________________________________________
+
+	_default	@CIS_DEBUGF			, 1
+
+	_default	@CIS_ZEROREG		, 9			; -1 == disabled
+	
+	_default	@CIS_TMPREG			, 19			; -1 == disabled
+
+	_default	@CIS_DISABLE_PREDEF_REG	, 0
+	
+	_default	@CIS_SHADOWREGF		, 1
+	
+	_default	@CIS_SUBREGF		, 1
+	;_________________________________________
+
+	_default	@CIS_PSEUDOFF		, 0
+
+	_default	@CIS_PSOR0FF		, 0
+	
+	_default	@CIS_PSEOR0FF		, 0
+
+	_default	@CIS_PSAND1FF		, 0
+
+;_______________________________________________________________________
+;## INTERNAL INIT ######################################################
+
+	#define	reg( r )		( @REG_##r )
+
+	#define	isreg( p )		defined( @REGT_##p ) && @REGT_##p
+
+	#define	_isreg( p )		! defined( @REG_##p ) || ! @REGT_##p
+
+	#define	defreg		defreg_
+	
+	#define	unreg			unreg_
+	;___________________________________
+
+	#define	@_ispair( r )	0 == ( @A & ( ( 1 << r ) - 1 ) ) &&	\
+						0 == ( ( ~ @A ) & ( 3 << r ) )
+ 
+	#define	@fc		.set	@f = 0
+	#define	@fs		.set	@f = 1
+
+	#define 	@ced		.set	@ce = @ce - 1
+	
+	#define 	@cbd		.set	@cb = @cb - 1
+
+	#define	@cs		.set	@c = 
+	#define	@ci		.set	@c = @c + 1
+	#define	@cd		.set	@c = @c - 1
+
+	#define	@fs		.set	@f = 1
+	#define	@fc		.set	@f = 0
+
+	#define	@vs		.set	@v = 
+	#define	@vr		.set	@v = @v >> 8
+	#define	@vi		.set	@v = @v + 1
+	#define	@vd		.set	@v = @v - 1
+
+	#define	@is		.set	@i = 
+	#define	@ir		.set	@i = @i >> 8
+	#define	@ii		.set	@i = @i + 1
+	#define	@id		.set	@i = @i - 1
+
+	;  dup 32 ~r
+	;
+	;	#define	@B~r		@B & 1 << ~r
+	;
+	;	#define	@A~r		@A & 1 << ~r
+	;
+	;	#define	@BR~r		.set @B = @B & ~ ( 1 << ~r )
+
+
+	;  dup 16 0+2 ~r
+	;
+	;	#define	@A_~r		.set	@a = ( @A >> ~r ) & 3
+	;
+	;	#define	@B_~r		.set	@b = ( @B >> ~r ) & 3
+	;
+	;	#define	@AR_~r	.set	@A = @A & ~ ( 3 << ~r )
+	;
+	;	#define	@BR_~r	.set	@B = @B & ~ ( 3 << ~r )
+
+	#define	@O		@0@1
+
+	#define	@I		.if
+	#define	@Y		.elif
+	#define	@E		.else
+	#define 	@e		.endif
+
+;_______________________________________________________________________
+;## zzz ##############################################################
+
+	.include	"_.complex.src"
+
+	.include	"_.pseudo.src"
+
+;_______________________________________________________________________
+;## INTERNAL CONFIGURATION #############################################
+
+	.if defined( @CIS_ZEROREG )
+	
+		.if @CIS_ZEROREG == -1
+		
+			.set	@CIS_ZEROREGOFF	= 1
+
+		.else
+	
+			.set	@CIS_ZEROREGOFF	= 0
+			
+			defreg	zero, 1 << @CIS_ZEROREG
+
+			mnem_reg	.de,f zero = , .de,f zero = , .de,f zero = , .de,f zero = , zero
+
+			.endif
+			
+		.endif
+	;_____________________________
+	
+	.if defined( @CIS_TMPREG )
+	
+		.if @CIS_TMPREG == -1
+		
+			.set	@CIS_TMPREGOFF = 1
+
+		.else
+	
+			.set	@CIS_TMPREGOFF = 0
+			
+			defreg	tmp, 1 << @CIS_TMPREG
+
+			mnem_reg	.de,f tmp = , .de,f tmp = , .de,f tmp = , .de,f tmp = , tmp
+
+			.endif
+			
+		.endif
+
+;_______________________________________________________________________
+;#######################################################################
+
+	defreg	r0, 1 << 0
+	defreg	r1, 1 << 1
+	defreg	r2, 1 << 2
+	defreg	r3, 1 << 3
+	defreg	r4, 1 << 4
+	defreg	r5, 1 << 5
+	defreg	r6, 1 << 6
+	defreg	r7, 1 << 7
+	defreg	r8, 1 << 8
+	defreg	r9, 1 << 9
+	
+	defreg	r10, 1 << 10
+	defreg	r11, 1 << 11
+	defreg	r12, 1 << 12
+	defreg	r13, 1 << 13
+	defreg	r14, 1 << 14
+	defreg	r15, 1 << 15
+	defreg	r16, 1 << 16
+	defreg	r17, 1 << 17
+	defreg	r18, 1 << 18
+	defreg	r19, 1 << 19
+
+	defreg	r20, 1 << 20
+	defreg	r21, 1 << 21
+	defreg	r22, 1 << 22
+	defreg	r23, 1 << 23
+	defreg	r24, 1 << 24
+	defreg	r25, 1 << 25
+	defreg	r26, 1 << 26
+	defreg	r27, 1 << 27
+	defreg	r28, 1 << 28
+	defreg	r29, 1 << 29
+
+	defreg	r30, 1 << 30
+	defreg	r31, 1 << 31
+
+
+
+
+
+;_______________________________________________________________________
+;## USER REGISTER DEFINITION ###########################################
+
+	.if ! @CIS_DISABLE_PREDEF_REG
+
+		defreg	rl		, reg( r0 )					; r (0,1)
+		defreg	rh		, reg( r1 )
+		defreg	r		, reg( rl ) | reg( rh )
+
+		defreg	TCNTHL, reg( r10 )
+		defreg	TCNTHH, reg( r11 )
+		defreg	TCNTH, reg( TCNTHL ) | reg( TCNTH )
+			
+		defreg	CSPL		, reg( r12 )				; CSPL (12)
+
+		defreg	iff		, reg( r13 )				; if (13)
+
+		defreg	gl		, reg( r14 )				; g (14,15)
+		defreg	gh		, reg( r15 )
+		defreg	g		, reg( gl ) | reg( gh )
+
+		defreg	il		, reg( r16 )				; i (16,17)
+		defreg	ih		, reg( r17 )
+		defreg	i		, reg( il ) | reg( ih )
+
+		defreg	tmp		, reg( tmp )
+
+		defreg	al		, reg( r20 )				; a (20,21)
+		defreg	ah		, reg( r21 )
+		defreg	a		, reg( al ) | reg( ah )
+
+		defreg	bl		, reg( r22 )				; b (22,23)
+		defreg	bh		, reg( r23 )
+		defreg	b		, reg( bl ) | reg( bh )
+
+		defreg	tl		, reg( r24 )				; t (24,25)
+		defreg	th		, reg( r25 )
+		defreg	t		, reg( tl ) | reg( th )
+
+		defreg	xl		, reg( r26 )				; x (26,27)
+		defreg	xh		, reg( r27 )
+		defreg	x		, reg( xl ) | reg( xh )
+
+		defreg	yl		, reg( r28 )				; y (28,29)
+		defreg	yh		, reg( r29 )
+		defreg	y		, reg( yl ) | reg( yh )
+
+		defreg	zl		, reg( r30 )				; z (30,31)
+		defreg	zh		, reg( r31 )
+		defreg	z		, reg( zl ) | reg( zh )
+
+		;_____________________________
+
+		defreg	tx		, reg( t ) | reg( x )
+		defreg	ty		, reg( t ) | reg( y )
+		defreg	tz		, reg( t ) | reg( z )
+
+		defreg	xy		, reg( x ) | reg( y )
+		defreg	xz		, reg( x ) | reg( z )
+		defreg	yz		, reg( y ) | reg( z )
+
+		defreg	txy		, reg( tx ) | reg( y )
+
+		defreg	xyz		, reg( xy ) | reg( z )
+		defreg	txyz		, reg( t ) | reg( xyz )
+		
+		defreg	ab		, reg( a ) | reg( b )
+		
+		defreg	abl		, reg( a ) | reg( bl )
+
+		defreg	abh		, reg( a ) | reg( bh )
+
+		.endif
+
+	
+	;_____________________________________________________
+.macro null_ ;########################################
+
+	.endm
+
+	
+	
+;_______________________________________________________________________
+;#######################################################################
+
+
+;___________________________________________________________
+.macro cisdebug ;###########################################
+
+		; 0		- message level
+		; 1		- message
+	
+		.if @CIS_DEBUGF
+		
+			debug__	@0, @1
+			
+			.endif
+	
+	.endm
+
+
+
+
+
+
+
+
+;_________________________________________________________________
+.macro defreg_ ;##################################################
+
+		; 0	- name
+		; 1	- mask
+		;_____________________________
+		;
+		; syntax:
+		;
+		;	defreg	regname, mask
+		;_____________________________
+		;
+		; to undefine a register assign 0 to @REGF__regname
+		;_____________________________
+
+		.set	@A	= @1
+
+		.if isreg( @0 )
+
+			.if @REGT_@0 == type_normal_register
+			
+				.if @REG_@0 != @A
+
+					fatal		"defreg: " str( @0 ) ": " \
+							"is already defined by the another mask"
+
+					.endif
+					
+				.endif
+
+			.endif
+		;_______________________
+
+		; define main register
+		
+		.set	@REG_@0	= @A
+
+		.set	@REGT_@0	= type_normal_register
+
+		defreg_maskinfo	@0
+		
+		cisdebug		1, "defreg: " str( @0 ) ": " str( @1 )
+		;_______________________
+
+		.if @A & @USEREG
+
+			.if @DEFREG_SUBREGF
+			
+				; define subregisters
+				
+				.if @c > 1
+				
+					.set	@n = -1
+
+					;  dup 32 ~r
+					;
+					;	@I @A~r
+					;
+					;		defsubreg0	@0, ~r
+					;			
+					;		@e
+
+					.endif
+					
+				.endif
+			;_________________
+
+			.if @DEFREG_SHADOWREGF
+
+				; define shadow register
+
+				.set	@A		= ( ~ @A ) & @USEREG
+				
+				.set	@REG__@0	= @A
+
+				.set	@REGT__@0	= type_shadow_register
+
+				defreg_maskinfo	_@0
+
+				cisdebug		2, 	"defreg: shadow _" str( @0 ) ": ~ " str( @1 ) " & @USEREG"
+						
+				.endif
+				
+			.endif
+
+	.endm
+	
+	.set	type_normal_register	= 1
+	.set	type_sub_register		= 2
+	.set	type_shadow_register	= 3
+	;___________________________________
+
+	.macro defreg_maskinfo
+
+			; 0		- register name
+			; out:	@c - mask width
+			;_________________
+			
+			.set	@c = 0
+			.set	@f = 1
+			.set	@b = 0
+			.set	@l = 0
+		
+			;  dup 32 ~r
+			;
+			;	@I @A~r
+			;
+			;		@ci
+			;
+			;		@I @f
+			;
+			;			.set	@b = ~r
+			;
+			;			@fc
+			;
+			;			@e
+			;
+			;		.set @l = ~r
+			;
+			;		@e
+
+			.if @c == 0
+
+				.set	@b = -1
+				
+				.set	@l = -1
+				
+				.endif
+
+			.set	@REGL_@0 = @c
+			.set	@REGB_@0 = @b
+			.set	@REGE_@0 = @l
+
+		.endm
+	;___________________________________
+
+	.macro defsubreg0
+
+			; 0		- base register name
+			; 1		- physical register number
+			;_________________
+
+			.if 0
+			
+		   ;  dup 32 ~r 
+		   ;
+		   ;	@Y ~r > @n
+		   ;		
+		   ;		defsubreg1	@0, ~r, @1
+		
+				.endif
+
+		.endm
+		;_______________________
+
+		.macro defsubreg1
+		
+				; 0		- base register name
+				; 1		- name suffix
+				; 2		- physical register number
+				;___________
+				
+				.set	@n = @1
+				
+				.if _isreg( @0@1 )
+					
+					.set	@REG_@0@1		= 1 << @2
+				
+					.set	@REGT_@0@1		= type_sub_register
+					
+					.set	@REGL_@0@1		= 1
+					
+					.set	@REGB_@0@1		= @2
+					
+					.set	@REGE_@0@1		= @2
+					
+					cisdebug			2, "defreg: subreg " str2(@0,@1) ": 1 << " str( @2 )
+					
+				.else
+				
+					cisdebug			2, "defreg: subreg " str2(@0,@1) ": SKIP"
+					
+					.endif
+					
+			.endm
+	
+;_____________________________________________________
+.macro def_register ;#################################
+
+		; 0	- regname
+		; 1	- mask
+		;_______________________
+		;
+		; syntax:
+		;
+		;	def		regname, register, mask
+		;_______________________
+
+		defreg	__params0_
+
+	.endm
+
+;___________________________________________________________
+.macro unreg_ ;#############################################
+	
+		; 0		- register's name
+		;_____________________________
+		;
+		; syntax:
+		;
+		;	indefreg	regname
+		;_____________________________
+
+		.if isreg( @0 )
+		
+			.set	@REGT_@0		= 0
+			
+			.endif
+
+
+		; undefine also:
+		;
+		;	shadow reg
+		;
+		;	subregs
+
+	.endm
+
+
+
+
+
+
+
+
+
+
+
+	; comparig register for zero w/o flag changing
+
+	cpse	t0, r9			; 32-bit:	8/9 clk
+	cpse	r0,r0
+
+	cpse	t1, r9
+	cpse	r0,r0
+	
+	cpse	t2, r9
+	cpse	r0,r0
+   
+	cpse	t3, r9
+	rjmp	nz
+	
+
+
+
+
+	cpse	t0, r9			; 32-bit:	9/10 clk
+	cpse	r0,r0
+
+	cpse	t1, r9
+	cpse	r0,r0
+	
+	cpse	t2, r9
+	cpse	r0,r0
+   
+	cpse	t3, r9
+	cpse	r0,r0
+	rjmp	z
+
+
+
+
+
+
+	cpse	t0, r9			; 16-bit:	1	4/5 clk
+	cpse	r0,r0
+
+	cpse	t1, r9
+	rjmp	nz
+
+
+	cpse	t0, r9			; 16-bit:	2	3/5 /4 clk
+	rjmp	nz
+	cpse	t1, r9
+	rjmp	nz
+
+
+
+	cpse	t0, r9			; 16-bit:	5/6 clk
+	cpse	r0,r0
+
+	cpse	t1, r9
+	cpse	r0, r0
+	rjmp	z
+
+
+
+
+
+	cpse	t0, r9			; 8-bit:	2/3 clk
+	rjmp	nz		
+
+
+
+
+	cpse	t0, r9			; 8-bit:	3/4 clk
+	cpse	r0, r0
+	rjmp	z
+
+outi ?
+push val
+
+
+
+
+	
+	
+	
+	

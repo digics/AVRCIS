@@ -1,0 +1,470 @@
+
+
+
+;_______________________________________________________________________
+;## PSEUDOINSTRUCTIONS(14) #############################################
+;
+;	ldi_
+;	cpi_
+;	addi_
+;	adci_
+;	subi_
+;	sbci_
+;	andi_
+;	ori_
+;	eori_ / xori_
+;	outi_
+;	outiw_
+;	movi_
+;	clr_
+;	ser_
+;
+;_______________________________________________________________________
+;## S3M ################################################################
+
+	;  mac PSEUDOFF
+	;
+	;	.if @CIS_PSEUDOFF
+	;
+	;		fatal		%1 ": pseudo instruction disabled (PSEUDOFF)"
+	;
+	;		.endif
+
+	; ________________________________________
+	;
+	;  mac PSTMPOFF
+	;
+	;	.if @CIS_TMPREGOFF
+	;
+	;		fatal		%1 ": pseudo instruction disabled (PSTMPOFF)"
+	;
+	;		.endif
+
+;_______________________________________________________________________
+;#######################################################################
+
+
+
+	#define  @PSOR0FF		@CIS_PSOR0FF
+	#define _@PSOR0FF		! @CIS_PSOR0FF
+
+	#define  @PSXOR0FF	@CIS_PSEOR0FF
+	#define _@PSXOR0FF	! @CIS_PSEOR0FF
+
+	#define  @PSAND1FF	@CIS_PSAND1FF
+	#define _@PSAND1FF	! @CIS_PSAND1FF
+
+
+;_______________________________________________________________________
+.macro ldi_ ;###########################################################
+
+		; 0		- physical register
+		; 1		- value
+		;_____________________________
+		
+		;  PSEUDOFF		"ldi"
+
+		.set	@_psv = @1
+
+		.if @_psv == 0 && ! @CIS_ZEROREGOFF
+		
+			mov	@0, zero
+			
+		.else
+
+			;  PSTMPOFF		"ldi"
+
+			ldi	tmp, @_psv
+			mov	@0, tmp
+			
+			.endif
+
+	.endm
+
+;_________________________________________________________________
+.macro cpi_ ;#####################################################
+
+		; 0		- physical register
+		; 1		- value
+		;_____________________________
+
+		;  PSEUDOFF		"cpi"
+
+		.set	@_psv = @1
+
+		.if @_psv == 0 && ! @CIS_ZEROREGOFF
+
+			cp	@0, r0
+			
+		.else
+
+			;  PSTMPOFF		"cpi"
+		
+			ldi	tmp, @_psv
+			cp	@0, tmp
+		
+			.endif
+
+	.endm
+
+;_________________________________________________________________
+.macro addi_ ;####################################################
+
+		; 0		- physical register
+		; 1		- value
+		;_____________________________
+
+		;  PSEUDOFF		"addi"
+
+		.set	@_psv		= @1
+
+		.if @_psv == 0 && ! @CIS_ZEROREGOFF
+
+			add	@0, zero
+
+		.elif @_psv == 1 && ! @CIS_ZEROREGOFF
+		
+			sec
+			adc	@0, zero
+				
+		.else
+
+			;  PSTMPOFF		"addi"
+	
+			ldi	tmp, @_psv
+			add	@0, tmp
+	
+			.endif
+
+	.endm
+
+;_________________________________________________________________
+.macro adci_ ;####################################################
+
+		; 0		- physical register
+		; 1		- value
+		;_____________________________
+
+		;  PSEUDOFF		"adci"
+
+		.set	@_psv		= @1
+
+		.if @_psv == 0 && ! @CIS_ZEROREGOFF
+
+			adc	@0, zero
+
+		.else
+
+			;  PSTMPOFF		"adci"
+
+			ldi	tmp, @_psv
+			adc	@0, tmp
+
+			.endif
+			
+	.endm
+	
+;_________________________________________________________________
+.macro subi_ ;####################################################
+
+		; 0		- physical register
+		; 1		- value
+		;_____________________________
+
+		;  PSEUDOFF		"subi"
+
+		.set	@_psv = @1
+	
+		.if @_psv == 0 && ! @CIS_ZEROREGOFF
+
+			sub	@0, zero
+			
+		.elif @_psv == 1
+
+			sec
+			sbc	@0, zero
+			
+		.else
+
+			;  PSTMPOFF		"subi"
+
+			ldi	tmp, @_psv
+			sub	@0, tmp
+			
+			.endif
+	
+	.endm
+
+;_________________________________________________________________
+.macro sbci_ ;####################################################
+
+		; 0		- physical register
+		; 1		- value
+		;_____________________________
+		
+		;  PSEUDOFF			"sbci"
+
+		.set	@_psv = @1
+
+		.if @_psv == 0 && ! @CIS_ZEROREGOFF
+
+			sbc	@0, zero
+			
+		.else
+
+			;  PSTMPOFF		"sbci"
+
+			ldi	tmp, @_psv
+			sbc	@0, tmp
+		
+			.endif
+
+	.endm
+
+;_________________________________________________________________
+.macro andi_;#####################################################
+
+		; 0		- physical register
+		; 1		- value
+		;_____________________________
+
+		;  PSEUDOFF			"andi"
+
+		.set	@_psv = @1
+
+		.if @_psv == 0 && ! @CIS_ZEROREGOFF
+		
+			and	@0, zero
+			
+		.elif @_psv == 0xFF
+		
+			.if ! @CIS_PSAND1FF
+			
+				and	@0, @0
+				
+				.endif
+		
+		.else
+		
+			;  PSTMPOFF		"andi"
+
+			ldi	tmp, @_psv
+			and	@0, tmp
+		
+			.endif
+	
+	.endm
+	
+;___________________________________________________________
+.macro ori_ ;###############################################
+
+		; 0		- physical register
+		; 1		- value
+		;_____________________________
+
+		;  PSEUDOFF			"ori"
+
+		.set	@_psv = @1
+
+		.if @_psv == 0 && ! @CIS_ZEROREGOFF
+		
+; insert this into ori/andi
+
+			.if ! @CIS_PSOR0FF
+	
+				or	@0, zero
+				
+				.endif
+				
+		.else
+		
+			;  PSTMPOFF		"ori"
+
+			ldi	tmp, @_psv
+			or	@0, tmp
+		
+			.endif
+
+	.endm
+
+;___________________________________________________________
+.macro eori_ ;##############################################
+
+		; 0		- physical register
+		; 1		- value
+		;_____________________________
+		
+		;  PSEUDOFF			"eori"
+
+		.set	@_psv		= @1
+
+		.if @_psv == 0 && ! @CIS_ZEROREGOFF
+
+			.if ! @CIS_PSEOR0FF
+
+				eor	@0, zero
+				
+				.endif
+			
+		.elif	@_psv == 0xFF
+
+			com	@0
+			
+		.else
+
+			;  PSTMPOFF		"eori"
+
+			ldi	tmp, @_psv
+			eor	@0, tmp
+	
+			.endif
+		
+	.endm
+
+;_________________________________________________________________
+.macro movi_ ;####################################################
+
+		; 0		- physical register
+		; 1		- value
+		;_____________________________
+		
+		;  PSEUDOFF		"movi"
+
+		.set	@_psv		= @1
+
+		.if @_psv == 0 && ! @CIS_ZEROREGOFF
+
+			eor	@0, zero
+
+		.else
+	
+			;  PSTMPOFF		"movi"
+			
+			ldi	tmp, @_psv
+			eor	@0, tmp
+	
+			.endif
+		 
+	.endm
+
+;_________________________________________________________________
+.macro outi_ ;####################################################
+
+		; 0		- port
+		; 1		- value
+		;_____________________________
+
+		;  PSEUDOFF			"outi"
+
+		.set	@_psa	= @0
+		
+		.set	@_psv	= low( @1 )
+		
+		;  outi_
+
+	.endm
+
+	;___________________________________
+	;
+	;  mac outi_
+	;
+	;	.if @_psv == 0 && ! @CIS_ZEROREGOFF
+	;
+	;		.if @_psa < 64
+	;		
+	;			out	@_psa, zero
+	;			
+	;		.else
+	;		
+	;			sts	@_psa, zero
+	;			
+	;			.endif
+	;
+	;	.else
+	;
+	;		;  PSTMPOFF		"outi"
+	;
+	;		ldi	tmp, @_psv
+	;
+	;		.if @_psa < 64
+	;				;			
+	;			out	@_psa, tmp
+	;			
+	;		.else
+	;
+	;			sts	@_psa, tmp
+	;			
+	;			.endif
+;___________________________________________________________
+.macro outiw_ ;#############################################
+
+		; 0		- port
+		; 1		- value
+		;_______________________
+		
+		;  PSEUDOFF			"outiw"
+
+		.set	@_psa = @0 + 1
+		
+		.set	@_psv1 = @1
+
+		.set	@_psv	= high( @_psv1 )
+
+		;  outiw_
+
+		.set	@_psv	= low( @_psv1 )
+
+		;  outi_
+
+	.endm
+
+	;___________________________________
+	;
+	;  mac outiw_
+	;
+	;	;  outi
+	;
+	;	.set	@_psa = @_psa - 1
+	
+;_________________________________________________________________
+.macro clr_ ;#####################################################
+
+		; 0		- register
+		;_______________________
+
+		;  PSEUDOFF			"clr"
+
+		.if ! @CIS_ZEROREGOFF
+		
+			mov	@0, zero
+			
+		.else
+
+			;  PSTMPOFF		"clr"
+
+			ldi	tmp, 0
+			mov	@0, tmp
+
+			.endif
+	
+	.endm 
+
+;___________________________________________________________
+.macro ser_ ;###############################################
+
+		; 0		- register
+		;_______________________
+
+		;  PSEUDOFF		"ser"
+		
+		;  PSTMPOFF		"ser"
+		
+		ldi	tmp, 0xFF
+		mov	@0, tmp
+			
+	.endm
+
+;_______________________________________________________________________
+;#######################################################################
+
+
